@@ -1,4 +1,5 @@
 import argparse
+
 import text
 from utils import load_filepaths_and_text
 
@@ -10,7 +11,7 @@ if __name__ == '__main__':
   parser.add_argument("--text_cleaners", nargs="+", default=["english_cleaners2"])
 
   args = parser.parse_args()
-    
+  # import pdb; pdb.set_trace() 
 
   for filelist in args.filelists:
     print("START:", filelist)

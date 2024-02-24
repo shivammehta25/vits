@@ -1,39 +1,28 @@
-import os
-from tqdm.auto import tqdm
-import json
 import argparse
 import itertools
+import json
 import math
+import os
+
 import torch
+import torch.distributed as dist
+import torch.multiprocessing as mp
 from torch import nn, optim
+from torch.cuda.amp import GradScaler, autocast
 from torch.nn import functional as F
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-import torch.multiprocessing as mp
-import torch.distributed as dist
-from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.cuda.amp import autocast, GradScaler
+from tqdm.auto import tqdm
 
 import commons
 import utils
-from data_utils import (
-  TextAudioLoader,
-  TextAudioCollate,
-  DistributedBucketSampler
-)
-from models import (
-  SynthesizerTrn,
-  MultiPeriodDiscriminator,
-)
-from losses import (
-  generator_loss,
-  discriminator_loss,
-  feature_loss,
-  kl_loss
-)
+from data_utils import (DistributedBucketSampler, TextAudioCollate,
+                        TextAudioLoader)
+from losses import discriminator_loss, feature_loss, generator_loss, kl_loss
 from mel_processing import mel_spectrogram_torch, spec_to_mel_torch
+from models import MultiPeriodDiscriminator, SynthesizerTrn
 from text.symbols import symbols
-
 
 torch.backends.cudnn.benchmark = True
 global_step = 0
@@ -45,10 +34,11 @@ def main():
 
   n_gpus = torch.cuda.device_count()
   os.environ['MASTER_ADDR'] = 'localhost'
-  os.environ['MASTER_PORT'] = '8023'
+  os.environ['MASTER_PORT'] = '8019'
 
   hps = utils.get_hparams()
-  mp.spawn(run, nprocs=n_gpus, args=(n_gpus, hps,))
+  run(0, n_gpus, hps)
+  # mp.spawn(run, nprocs=n_gpus, args=(n_gpus, hps,))
 
 
 def run(rank, n_gpus, hps):

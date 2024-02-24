@@ -1,14 +1,15 @@
-import time
 import os
 import random
+import time
+
 import numpy as np
 import torch
 import torch.utils.data
 
-import commons 
+import commons
 from mel_processing import spectrogram_torch
-from utils import load_wav_to_torch, load_filepaths_and_text
-from text import text_to_sequence, cleaned_text_to_sequence
+from text import cleaned_text_to_sequence, text_to_sequence
+from utils import load_filepaths_and_text, load_wav_to_torch
 
 
 class TextAudioLoader(torch.utils.data.Dataset):
@@ -48,7 +49,8 @@ class TextAudioLoader(torch.utils.data.Dataset):
 
         audiopaths_and_text_new = []
         lengths = []
-        for audiopath, text in self.audiopaths_and_text:
+        
+        for audiopath, text, *_ in self.audiopaths_and_text:
             if self.min_text_len <= len(text) and len(text) <= self.max_text_len:
                 audiopaths_and_text_new.append([audiopath, text])
                 lengths.append(os.path.getsize(audiopath) // (2 * self.hop_length))

@@ -106,6 +106,10 @@ class FlowMatchingDurationPrediction(nn.Module):
     def __init__(self, in_channels, filter_channels, n_spks, spk_emb_dim, kernel_size, p_dropout, sigma_min=1e-4, n_steps=10) -> None:
         super().__init__()
 
+        print("=======================================================")
+        print("===== Initialising FlowMatchingDurationPrediction =====")
+        print("=======================================================")
+        
         self.estimator = DurationPredictorNetworkWithTimeStep(
             1
             + in_channels
@@ -645,10 +649,10 @@ class SynthesizerTrn(nn.Module):
     self.enc_q = PosteriorEncoder(spec_channels, inter_channels, hidden_channels, 5, 1, 16, gin_channels=gin_channels)
     self.flow = ResidualCouplingBlock(inter_channels, hidden_channels, 5, 1, 4, gin_channels=gin_channels)
 
-    if dp == "flow_matching":
+    if dp == "fm":
       self.dp = FlowMatchingDurationPrediction(hidden_channels, 256, n_speakers, gin_channels, 3, 0.5)
-    elif dp == "norm_flows":
-      self.dp = StochasticDurationPredictor(hidden_channels, 192, 3, 0.5, 4, gin_channels=gin_channels)
+    # elif dp == "norm_flows":
+    #   self.dp = StochasticDurationPredictor(hidden_channels, 192, 3, 0.5, 4, gin_channels=gin_channels)
     elif dp == "det":
       self.dp = DurationPredictor(hidden_channels, 256, 3, 0.5, gin_channels=gin_channels)
     else: raise ValueError("Invalid dp setting!")
@@ -680,12 +684,12 @@ class SynthesizerTrn(nn.Module):
       attn = monotonic_align.maximum_path(neg_cent, attn_mask.squeeze(1)).unsqueeze(1).detach()
 
     w = attn.sum(2) 
+    
+    logw_ = torch.log(w + 1e-6) * x_mask
     # Very very weird terminology to use duration loss or something as l_length
-    if self.use_sdp:
-      l_length = self.dp(x, x_mask, w, g=g)
-      l_length = l_length / torch.sum(x_mask)
+    if isinstance(self.dp, FlowMatchingDurationPrediction):
+      l_length = self.dp.compute_loss(logw_, x, x_mask)
     else:
-      logw_ = torch.log(w + 1e-6) * x_mask
       logw = self.dp(x, x_mask, g=g)
       l_length = torch.sum((logw - logw_)**2, [1,2]) / torch.sum(x_mask) # for averaging 
 
@@ -704,8 +708,8 @@ class SynthesizerTrn(nn.Module):
     else:
       g = None
 
-    if self.use_sdp:
-      logw = self.dp(x, x_mask, g=g, reverse=True, noise_scale=noise_scale_w)
+    if isinstance(self.dp, FlowMatchingDurationPrediction):
+      logw = self.dp(x, x_mask)
     else:
       logw = self.dp(x, x_mask, g=g)
     w = torch.exp(logw) * x_mask * length_scale

@@ -12,9 +12,26 @@ hyperparameter. Some cleaners are English-specific. You'll typically want to use
      the symbols in symbols.py to match your data).
 '''
 
+import logging
 import re
+
+import phonemizer
 from unidecode import unidecode
-from phonemizer import phonemize
+
+# To avoid excessive logging we set the log level of the phonemizer package to Critical
+critical_logger = logging.getLogger("phonemizer")
+critical_logger.setLevel(logging.CRITICAL)
+
+# Intializing the phonemizer globally significantly reduces the speed
+# now the phonemizer is not initialising at every call
+# Might be less flexible, but it is much-much faster
+global_phonemizer = phonemizer.backend.EspeakBackend(
+    language="en-us",
+    preserve_punctuation=True,
+    with_stress=True,
+    language_switch="remove-flags",
+    logger=critical_logger,
+)
 
 
 # Regular expression matching whitespace:
@@ -95,6 +112,7 @@ def english_cleaners2(text):
   text = convert_to_ascii(text)
   text = lowercase(text)
   text = expand_abbreviations(text)
-  phonemes = phonemize(text, language='en-us', backend='espeak', strip=True, preserve_punctuation=True, with_stress=True)
+  phonemes = global_phonemizer.phonemize([text], strip=True, njobs=1)[0]
+  # phonemes = phonemize(text, language='en-us', backend='espeak', strip=True, preserve_punctuation=True, with_stress=True)
   phonemes = collapse_whitespace(phonemes)
   return phonemes

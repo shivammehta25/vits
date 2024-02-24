@@ -1,18 +1,23 @@
-import os
-import glob
-import sys
 import argparse
-import logging
+import glob
 import json
+import logging
+import os
 import subprocess
+import sys
+from pathlib import Path
+
 import numpy as np
-from scipy.io.wavfile import read
 import torch
+from scipy.io.wavfile import read
 
 MATPLOTLIB_FLAG = False
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logger = logging
+
+numba_logger = logging.getLogger('numba')
+numba_logger.setLevel(logging.WARNING)
 
 
 def load_checkpoint(checkpoint_path, model, optimizer=None):
@@ -43,6 +48,18 @@ def load_checkpoint(checkpoint_path, model, optimizer=None):
   return model, optimizer, learning_rate, iteration
 
 
+def keep_top_k_checkpoints(logdir, k=5):
+    if k is not None:
+        sorted_files = sorted(list(Path(logdir).glob('G_*.pth')), key=lambda x: int(str(x.stem).split('_')[1]), reverse=True)
+        for file in sorted_files[k - 1:]:
+            file.unlink()
+            
+        sorted_files = sorted(list(Path(logdir).glob('D_*.pth')), key=lambda x: int(str(x.stem).split('_')[1]), reverse=True)
+        for file in sorted_files[k - 1:]:
+            file.unlink()
+
+
+
 def save_checkpoint(model, optimizer, learning_rate, iteration, checkpoint_path):
   logger.info("Saving model and optimizer state at iteration {} to {}".format(
     iteration, checkpoint_path))
@@ -50,6 +67,9 @@ def save_checkpoint(model, optimizer, learning_rate, iteration, checkpoint_path)
     state_dict = model.module.state_dict()
   else:
     state_dict = model.state_dict()
+    
+  keep_top_k_checkpoints(Path(checkpoint_path).parent)
+  
   torch.save({'model': state_dict,
               'iteration': iteration,
               'optimizer': optimizer.state_dict(),
